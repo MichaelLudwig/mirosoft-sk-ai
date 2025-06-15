@@ -5,6 +5,7 @@ from semantic_kernel.prompt_template import PromptTemplateConfig
 from semantic_kernel.functions import KernelArguments
 from semantic_kernel.contents import ChatMessageContent
 from semantic_kernel.prompt_template import InputVariable
+# import tiktoken  # Optional - install with: pip install tiktoken
 from skills.graph_api_request import GraphAPIRequestSkill
 from config.date_helper import enhance_prompt_with_date
 
@@ -123,6 +124,17 @@ def build_kernel() -> Kernel:
     return kernel
 
 
+def estimate_tokens(text: str, model="gpt-4") -> int:
+    """Estimate token count"""
+    try:
+        import tiktoken
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except:
+        # Fallback to character estimation if tiktoken not installed
+        # Rough estimate: 1 token ≈ 4 characters for English, 2 for German
+        return len(text) // 3
+
 async def process_user_query(kernel: Kernel, user_query: str, step_callback=None) -> str:
     """
     Process user query through the agent pipeline:
@@ -132,6 +144,8 @@ async def process_user_query(kernel: Kernel, user_query: str, step_callback=None
     3. Summarize response
     """
     
+    total_tokens = 0
+    
     try:
         # Step 0: Check user intent
         intent_classifier = kernel.get_function("intent_classifier", "IntentClassifier")
@@ -140,6 +154,10 @@ async def process_user_query(kernel: Kernel, user_query: str, step_callback=None
             KernelArguments(input=user_query)
         )
         intent = str(intent_result).strip()
+        
+        # Track tokens
+        intent_prompt = f"Du bist ein Intent-Klassifizierer...\nBenutzerfrage: {user_query}\n..."
+        total_tokens += estimate_tokens(intent_prompt) + estimate_tokens(intent)
         
         # Debug logging and callback
         print(f"User Query: {user_query}")
@@ -179,12 +197,19 @@ Assistent:"""
         if step_callback:
             step_callback("Date Enhancement", f"Enhanced Query: {enhanced_query}")
         
+        # Track tokens for date enhancement
+        total_tokens += estimate_tokens(enhanced_query)
+        
         api_builder = kernel.get_function("graph_api_builder", "GraphAPIBuilder")
         api_url_result = await kernel.invoke(
             api_builder,
             KernelArguments(input=enhanced_query)
         )
         api_path = str(api_url_result).strip()
+        
+        # Track tokens for API generation
+        api_prompt = f"Du bist ein Experte für die Microsoft Graph API...\nBenutzerfrage: {enhanced_query}\n..."
+        total_tokens += estimate_tokens(api_prompt) + estimate_tokens(api_path)
         
         if step_callback:
             step_callback("API URL Generation", f"Generated URL: {api_path}")
@@ -223,11 +248,15 @@ Assistent:"""
         
         final_response = str(summary)
         
+        # Track tokens for summarization
+        summary_prompt = f"Du bist ein präziser Assistent...\nOriginalfrage: {user_query}\nAPI-Antwort: {str(api_response)}\n..."
+        total_tokens += estimate_tokens(summary_prompt) + estimate_tokens(final_response)
+        
+        # Add tokens for API response
+        total_tokens += estimate_tokens(str(api_response))
+        
         if step_callback:
-            # Estimate tokens (rough approximation)
-            total_chars = len(user_query) + len(enhanced_query) + len(api_path) + len(str(api_response)) + len(final_response)
-            estimated_tokens = total_chars // 4  # Rough estimate: 1 token ≈ 4 characters
-            step_callback("Token Estimate", f"~{estimated_tokens} tokens")
+            step_callback("Token Count", f"Total: {total_tokens} tokens (Input: {total_tokens - estimate_tokens(final_response)}, Output: {estimate_tokens(final_response)})")
         
         return final_response
         

@@ -3,3 +3,4 @@ semantic-kernel
 aiohttp
 azure-identity
 python-dotenv
+tiktoken

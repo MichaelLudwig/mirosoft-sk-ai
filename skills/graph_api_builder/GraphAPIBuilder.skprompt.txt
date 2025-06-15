@@ -23,7 +23,6 @@ Beispiele für Gruppen-Abfragen:
 - "Alle Gruppen anzeigen" → /groups
 - "Microsoft 365 Gruppen" → /groups?$filter=groupTypes/any(c:c eq 'Unified')
 - "Sicherheitsgruppen" → /groups?$filter=securityEnabled eq true and mailEnabled eq false
-- "Gruppen mit mehr als 100 Mitgliedern" → /groups?$filter=members/$count ge 100
 - "Gruppen die 'Sales' im Namen haben" → /groups?$filter=contains(displayName,'Sales')
 
 Beispiele für andere Ressourcen:
@@ -31,5 +30,12 @@ Beispiele für andere Ressourcen:
 - "Meine E-Mails" → /me/messages
 - "Unternehmensgeräte" → /devices
 - "Gelöschte Benutzer" → /directory/deletedItems/microsoft.graph.user
+
+Beispiele für Aktivitäts- und Audit-Abfragen:
+- "Wer war zuletzt aktiv?" → /auditLogs/signIns?$top=10&$orderby=createdDateTime desc
+- "Letzte Anmeldungen" → /auditLogs/signIns?$top=20&$orderby=createdDateTime desc
+- "Letzte Aktivitäten im Tenant" → /auditLogs/directoryAudits?$top=20&$orderby=activityDateTime desc
+- "Anmeldungen heute" → /auditLogs/signIns?$filter=createdDateTime ge 2025-06-15T00:00:00Z
+- "Fehlgeschlagene Anmeldungen" → /auditLogs/signIns?$filter=status/errorCode ne 0
 
 Graph API URL:

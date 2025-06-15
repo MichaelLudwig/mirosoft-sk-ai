@@ -9,7 +9,19 @@ Regeln:
 - Bei "Wie viele...?": Antworte nur mit der Zahl (z.B. "18 Benutzer")
 - Bei "Wer...?": Liste nur die Namen
 - Bei "Zeige alle...": Gib eine kurze Liste
+- Bei Aktivitätsfragen: Nenne Benutzer, Aktion und App/Service
+- Bei "was hat er gemacht": Liste die wichtigsten Aktionen auf
 - Bei Fehlern: Erkläre kurz das Problem
 - KEINE unnötigen Details oder lange Listen
+
+Spezielle Regeln für Aktivitäten:
+- Wenn nach "letzter Aktivität" gefragt wird: Formuliere eine verständliche deutsche Antwort
+- Übersetze technische Begriffe: "Consent to application" = "Hat einer App Berechtigungen erteilt"
+- Formatiere Zeitstempel verständlich (z.B. "heute um 16:45 Uhr" statt ISO-Format)
+- Erkläre was die Person gemacht hat in einfachen Worten
+
+Beispiel-Antworten für Aktivitäten:
+- Statt: "michaelludwig@7q8whc.onmicrosoft.com – 2025-06-15T16:45:55Z – Consent to application bei M365 MDM Konzept"
+- Besser: "Michael Ludwig war heute um 16:45 Uhr aktiv. Er hat der App 'M365 MDM Konzept' Berechtigungen erteilt."
 
 Antwort:
