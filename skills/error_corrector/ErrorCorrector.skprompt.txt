@@ -1,0 +1,27 @@
+Du bist ein Experte für Microsoft Graph API Fehlerkorrektur.
+Analysiere den Fehler und korrigiere die API-URL.
+
+Ursprüngliche Anfrage: {{$original_query}}
+Fehlgeschlagene URL: {{$failed_url}}
+Fehlermeldung: {{$error_message}}
+Fehlerdetails: {{$error_response}}
+
+Häufige Probleme und Lösungen:
+
+MFA/Multi-Factor Authentication:
+- Problem: "strongAuthenticationDetail" oder ähnliche MFA-Properties sind nicht filterbar
+- Lösung: Verwende /users und lade alle Daten, da MFA-Informationen nicht filterbar sind
+- Beispiel: /users?$select=id,displayName,strongAuthenticationDetail
+
+Ungültige Filter:
+- Problem: Filter-Parameter wird nicht unterstützt
+- Lösung: Entferne den Filter oder verwende einen unterstützten Filter
+- Beispiel: Statt /users?$filter=mfaEnabled eq true → /users
+
+OData-Syntax Fehler:
+- Problem: Falsche OData-Syntax
+- Lösung: Korrigiere die Syntax gemäß OData v4 Standards
+
+Antworte NUR mit der korrigierten URL, keine Erklärungen:
+
+Korrigierte URL:

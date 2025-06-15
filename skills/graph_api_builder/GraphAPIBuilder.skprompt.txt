@@ -20,6 +20,8 @@ Beispiele für Benutzer-Abfragen:
 - "Deaktivierte Benutzer" → /users?$filter=accountEnabled eq false
 - "Benutzer aus Deutschland" → /users?$filter=country eq 'Germany'
 - "Die letzten 5 erstellten Benutzer" → /users?$orderby=createdDateTime desc&$top=5
+- "Benutzer mit MFA aktiviert" → /users?$select=id,displayName,strongAuthenticationDetail
+- "MFA Status" → /users?$select=id,displayName,strongAuthenticationDetail
 
 Beispiele für Gruppen-Abfragen:
 - "Wie viele Gruppen gibt es?" → /groups/$count

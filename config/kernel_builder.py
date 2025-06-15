@@ -6,6 +6,7 @@ from semantic_kernel.functions import KernelArguments
 from semantic_kernel.contents import ChatMessageContent
 from semantic_kernel.prompt_template import InputVariable
 # import tiktoken  # Optional - install with: pip install tiktoken
+import json
 from skills.graph_api_request import GraphAPIRequestSkill
 from config.date_helper import enhance_prompt_with_date
 
@@ -88,6 +89,44 @@ def build_kernel() -> Kernel:
         plugin_name="summarizer",
         function_name="Summarizer",
         prompt_template_config=summarizer_config,
+    )
+    
+    # Import Error Corrector prompt
+    with open(os.path.join(skills_directory, "error_corrector", "ErrorCorrector.skprompt.txt"), "r", encoding="utf-8") as f:
+        error_corrector_prompt = f.read()
+    
+    error_corrector_config = PromptTemplateConfig(
+        template=error_corrector_prompt,
+        name="ErrorCorrector",
+        description="Correct failed Graph API URLs",
+        input_variables=[
+            InputVariable(
+                name="original_query",
+                description="The original user question",
+                is_required=True,
+            ),
+            InputVariable(
+                name="failed_url",
+                description="The failed API URL",
+                is_required=True,
+            ),
+            InputVariable(
+                name="error_message",
+                description="The error message",
+                is_required=True,
+            ),
+            InputVariable(
+                name="error_response",
+                description="The full error response",
+                is_required=True,
+            )
+        ],
+    )
+    
+    error_corrector_function = kernel.add_function(
+        plugin_name="error_corrector",
+        function_name="ErrorCorrector",
+        prompt_template_config=error_corrector_config,
     )
     
     # Import Intent Classifier prompt
@@ -192,13 +231,22 @@ Assistent:"""
         
         # For GRAPH_API queries, proceed with the normal flow
         # Step 1: Generate Graph API URL with enhanced date handling
+        if step_callback:
+            step_callback("Date Enhancement", "Überprüfe Zeitangaben...")
+        
         enhanced_query = enhance_prompt_with_date(user_query)
         
         if step_callback:
-            step_callback("Date Enhancement", f"Enhanced Query: {enhanced_query}")
+            if enhanced_query != user_query:
+                step_callback("Date Enhancement", f"Zeitfilter hinzugefügt: {enhanced_query}")
+            else:
+                step_callback("Date Enhancement", "Keine Zeitangaben gefunden - überspringe")
         
         # Track tokens for date enhancement
         total_tokens += estimate_tokens(enhanced_query)
+        
+        if step_callback:
+            step_callback("API URL Generation", "Generiere Graph API URL...")
         
         api_builder = kernel.get_function("graph_api_builder", "GraphAPIBuilder")
         api_url_result = await kernel.invoke(
@@ -212,21 +260,60 @@ Assistent:"""
         total_tokens += estimate_tokens(api_prompt) + estimate_tokens(api_path)
         
         if step_callback:
-            step_callback("API URL Generation", f"Generated URL: {api_path}")
+            step_callback("API URL Generation", f"URL generiert: {api_path}")
         
         # Validate the API path
         if not api_path or api_path == "None":
             return "❌ Fehler: Konnte keine gültige Graph API URL generieren."
     
-        # Step 2: Execute Graph API request
-        if step_callback:
-            step_callback("API Request", f"Calling: https://graph.microsoft.com/v1.0{api_path}")
+        # Step 2: Execute Graph API request with retry mechanism
+        max_retries = 3
+        api_response = None
+        
+        for attempt in range(max_retries):
+            if step_callback:
+                step_callback("API Request", f"Versuch {attempt + 1}/{max_retries}: https://graph.microsoft.com/v1.0{api_path}")
+                
+            graph_request = kernel.get_function("GraphAPIRequest", "execute_graph_request")
+            api_response = await kernel.invoke(
+                graph_request,
+                KernelArguments(api_path=api_path)
+            )
             
-        graph_request = kernel.get_function("GraphAPIRequest", "execute_graph_request")
-        api_response = await kernel.invoke(
-            graph_request,
-            KernelArguments(api_path=api_path)
-        )
+            # Check if response contains an error
+            try:
+                response_data = json.loads(str(api_response))
+                if "error" in response_data and response_data.get("status_code", 0) >= 400:
+                    if attempt < max_retries - 1:  # Not the last attempt
+                        if step_callback:
+                            step_callback("Error Correction", f"Fehler erkannt, korrigiere URL (Versuch {attempt + 1})...")
+                        
+                        # Try to correct the error
+                        error_corrector = kernel.get_function("error_corrector", "ErrorCorrector")
+                        corrected_url_result = await kernel.invoke(
+                            error_corrector,
+                            KernelArguments(
+                                original_query=user_query,
+                                failed_url=api_path,
+                                error_message=response_data.get("error", "Unknown error"),
+                                error_response=str(api_response)
+                            )
+                        )
+                        
+                        corrected_api_path = str(corrected_url_result).strip()
+                        if corrected_api_path and corrected_api_path != api_path:
+                            api_path = corrected_api_path
+                            if step_callback:
+                                step_callback("Error Correction", f"URL korrigiert zu: {api_path}")
+                            continue  # Retry with corrected URL
+                        else:
+                            break  # No correction possible
+                    else:
+                        break  # Last attempt, use the error response
+                else:
+                    break  # Success, exit retry loop
+            except:
+                break  # Can't parse response, exit retry loop
         
         if step_callback:
             # Truncate response for display
