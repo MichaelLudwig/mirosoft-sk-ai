@@ -1,0 +1,99 @@
+Project Requirements Document (PRD)
+Projektname: GraphGPT – Chatbasierter Graph API-Agent
+Version: 1.0
+Status: Entwurf zur technischen Umsetzung
+Autor: [Dein Name]
+Letztes Update: 14.06.2025
+
+🧭 Ziel des Projekts
+Ziel ist es, eine lokal lauffähige, benutzerfreundliche Chat-Anwendung zu entwickeln, mit der Benutzer frei formulierte Fragen zur Microsoft 365 Umgebung stellen können (z. B. „Welche Benutzer wurden letzte Woche erstellt?“). Die Anwendung nutzt ein LLM (GPT-4 via Azure OpenAI), um diese Fragen zu verstehen, in Graph API Requests zu übersetzen, auszuführen und verständlich zu beantworten.
+
+🧩 Projektkomponenten
+Komponente	Beschreibung
+Frontend (Streamlit)	Einfaches Chat-UI basierend auf Standard-Streamlit-Komponenten
+Agent (Semantic Kernel)	Plant, analysiert und orchestriert Skills zur API-Generierung und Ausführung
+API-Zugriff (Graph API)	Zugriff auf Microsoft-Daten via REST mit OAuth 2.0 Token
+Azure OpenAI ChatGPT	GPT-4 für Sprachverstehen, API-URL-Generierung, Ergebniszusammenfassung
+
+📋 Funktionale Anforderungen
+🔸 Frontend / Chat UI
+Streamlit-Oberfläche mit Eingabefeld und Chatverlauf
+
+Lokale Ausführung über streamlit run app.py
+
+Antwortanzeige im Chatstil
+
+Button zum „neuen Chat starten“
+
+🔸 Benutzerfrage → GPT → Graph API → Antwort
+Frage wird per LLM interpretiert
+
+GPT generiert einen passenden Microsoft Graph API-Endpunkt (z. B. /users?$filter=...)
+
+REST-Call wird mit Token authentifiziert
+
+Antwort (JSON) wird lesbar zusammengefasst (GPT-Skill)
+
+🔸 Kontext-Verarbeitung mit Skills
+Skill GraphAPIBuilder generiert URLs
+
+Skill GraphAPIRequest ruft Daten ab
+
+Skill Summarizer erzeugt menschenlesbare Ausgabe
+
+🛡️ Nicht-funktionale Anforderungen
+Kriterium	Beschreibung
+Lokal ausführbar	Anwendung muss vollständig lokal testbar sein (Browser-UI via Streamlit)
+Datensicherheit	Keine persistente Speicherung sensibler Daten
+Modularität	Komponenten sollen austauschbar und erweiterbar sein
+Erweiterbarkeit	Später sollen neue Skills ergänzt werden können (Mails, Kalender etc.)
+
+🔐 Voraussetzungen / Abhängigkeiten
+✅ Azure-Zugänge (durch dich bereitgestellt)
+Azure OpenAI Resource mit GPT-4
+
+App Registration mit Berechtigungen für Graph API
+
+Werte: AZURE_OPENAI_KEY, AZURE_OPENAI_ENDPOINT, AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+
+✅ Python-Abhängigkeiten (requirements.txt)
+txt
+Kopieren
+Bearbeiten
+streamlit
+semantic-kernel
+requests
+azure-identity
+python-dotenv
+📁 Projektstruktur
+plaintext
+Kopieren
+Bearbeiten
+graphgpt/
+│
+├── app.py                     # Streamlit-Anwendung
+├── .env                       # Lokale Konfig (Secrets)
+├── skills/
+│   ├── graph_api_builder/     # Prompt-Skill zur URL-Generierung
+│   │   └── GraphAPIBuilder.skprompt.txt
+│   ├── summarizer/
+│   │   └── Summarizer.skprompt.txt
+│   └── graph_api_request.py   # Native Skill zur REST-Ausführung
+├── config/
+│   └── kernel_builder.py      # Semantic Kernel Instanzaufbau
+├── requirements.txt
+🧪 Test- und Ablaufplan
+Lokale Ausführung: streamlit run app.py
+
+Frage eingeben: „Welche Benutzer wurden letzte Woche erstellt?“
+
+Interner Ablauf:
+
+GPT baut URL wie: /users?$filter=createdDateTime ge 2025-06-07
+
+Skill ruft Graph API auf
+
+JSON wird zusammengefasst
+
+Ergebnis erscheint als GPT-Antwort im Chat
+

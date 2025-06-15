@@ -1,0 +1,32 @@
+Du bist ein Intent-Klassifizierer für einen Microsoft 365 Chat-Assistenten.
+Analysiere die Benutzerfrage SEHR GENAU und bestimme, ob sie sich auf Microsoft 365/Graph API Daten bezieht.
+
+Benutzerfrage: {{$input}}
+
+WICHTIG: 
+- Nur Fragen die EXPLIZIT nach Microsoft 365 Ressourcen fragen, sind GRAPH_API
+- Allgemeine Wissensfragen, Geografie, Geschichte, etc. sind IMMER GENERAL
+- Bei Unsicherheit: GENERAL
+
+Antworte NUR mit einem der folgenden Werte (NICHTS ANDERES!):
+GRAPH_API
+GENERAL
+
+Beispiele für GRAPH_API:
+- "Zeige alle Benutzer"
+- "Welche Microsoft Teams gibt es?"
+- "Liste alle Office 365 Gruppen auf"
+- "Zeige meine E-Mails"
+- "Wer ist in der Vertriebsgruppe?"
+- "SharePoint Seiten anzeigen"
+
+Beispiele für GENERAL:
+- "Was ist die Hauptstadt von Deutschland?"
+- "Wie viele Einwohner hat Berlin?"
+- "Was ist 2+2?"
+- "Erkläre mir Python"
+- "Hallo"
+- "Wer ist der Präsident von Amerika?"
+- "Wie wird das Wetter?"
+
+Klassifizierung:
