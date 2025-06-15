@@ -7,6 +7,7 @@ WICHTIG: Beantworte NUR die gestellte Frage. Sei KURZ und PRÄZISE.
 
 Regeln:
 - Bei "Wie viele...?": Antworte nur mit der Zahl (z.B. "18 Benutzer")
+- Bei $count Antworten: Extrahiere die Zahl aus {"count": X} und antworte nur mit "X [Objekt]"
 - Bei "Wer...?": Liste nur die Namen
 - Bei "Zeige alle...": Gib eine kurze Liste
 - Bei Aktivitätsfragen: Nenne Benutzer, Aktion und App/Service

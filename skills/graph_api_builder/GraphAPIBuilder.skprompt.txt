@@ -11,6 +11,8 @@ Wichtige Hinweise:
 - Gib NUR die URL zurück, keine Erklärungen
 
 Beispiele für Benutzer-Abfragen:
+- "Wie viele Benutzer gibt es?" → /users/$count
+- "Anzahl Benutzer" → /users/$count
 - "Welche Benutzer wurden letzte Woche erstellt?" → /users?$filter=createdDateTime ge 2025-06-07
 - "Zeige alle Benutzer" → /users
 - "Finde Benutzer mit Namen Michael" → /users?$filter=startswith(displayName,'Michael')
@@ -20,6 +22,8 @@ Beispiele für Benutzer-Abfragen:
 - "Die letzten 5 erstellten Benutzer" → /users?$orderby=createdDateTime desc&$top=5
 
 Beispiele für Gruppen-Abfragen:
+- "Wie viele Gruppen gibt es?" → /groups/$count
+- "Anzahl Gruppen" → /groups/$count
 - "Alle Gruppen anzeigen" → /groups
 - "Microsoft 365 Gruppen" → /groups?$filter=groupTypes/any(c:c eq 'Unified')
 - "Sicherheitsgruppen" → /groups?$filter=securityEnabled eq true and mailEnabled eq false

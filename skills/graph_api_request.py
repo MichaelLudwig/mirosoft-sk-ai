@@ -49,12 +49,26 @@ class GraphAPIRequestSkill:
             "Content-Type": "application/json"
         }
         
+        # Add special header for $count requests
+        if "$count" in api_path:
+            headers["ConsistencyLevel"] = "eventual"
+        
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(full_url, headers=headers) as response:
                     response.raise_for_status()
-                    data = await response.json()
-                    return json.dumps(data, indent=2)
+                    
+                    # Handle $count endpoints that return plain text
+                    if "$count" in api_path:
+                        count_text = await response.text()
+                        return json.dumps({
+                            "count": int(count_text.strip()),
+                            "message": f"Total count: {count_text.strip()}"
+                        }, indent=2)
+                    else:
+                        # Regular JSON response
+                        data = await response.json()
+                        return json.dumps(data, indent=2)
                     
             except aiohttp.ClientError as e:
                 return json.dumps({
