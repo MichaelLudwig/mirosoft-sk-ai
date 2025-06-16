@@ -59,6 +59,8 @@ if 'agent_status' not in st.session_state:
     st.session_state.agent_status = "ready"
 if 'agent_current_step' not in st.session_state:
     st.session_state.agent_current_step = ""
+if 'final_agent_steps' not in st.session_state:
+    st.session_state.final_agent_steps = []
 if 'kernel' not in st.session_state:
     try:
         st.session_state.kernel = build_kernel()
@@ -76,6 +78,10 @@ with st.sidebar:
     
     # Token Counter
     token_metric_placeholder = st.empty()
+    
+    # Step History
+    st.markdown("### 📋 Step History")
+    step_history_placeholder = st.empty()
 
 # Update sidebar display function
 def update_sidebar_display():
@@ -130,6 +136,51 @@ def update_sidebar_display():
     
     with token_metric_placeholder:
         st.metric("Tokens (aktuelle Anfrage)", st.session_state.current_tokens)
+    
+    with step_history_placeholder:
+        # Use final_agent_steps for history display (set after chat completion)
+        steps_to_show = st.session_state.final_agent_steps if st.session_state.final_agent_steps else []
+        
+        if steps_to_show:
+            # Debug: Show how many steps we have
+            st.caption(f"Debug: {len(steps_to_show)} Steps in History")
+            
+            # Debug: Print step details in console too
+            print(f"DEBUG: Displaying {len(steps_to_show)} steps in sidebar")
+            for i, step in enumerate(steps_to_show):
+                print(f"DEBUG: Display Step {i+1}: {step['type']}")
+            
+            # Translate step types to German for history display
+            step_translations = {
+                "Intent Classification": "Klassifiziere Anfrage",
+                "Date Enhancement": "Verarbeite Zeitangaben", 
+                "API URL Generation": "Generiere API-Abfrage",
+                "API Request": "Rufe Daten ab",
+                "API Response": "Verarbeite Antwort",
+                "Summarization": "Erstelle Zusammenfassung",
+                "Token Count": "Zähle Tokens",
+                "Error Correction": "Korrigiere Fehler"
+            }
+            
+            # Use simple text formatting - avoid HTML issues
+            all_steps_text = ""
+            for i, step in enumerate(steps_to_show):
+                step_name = step_translations.get(step['type'], step['type'])
+                step_content = step['content']
+                
+                # Show more content but still limit for readability
+                if len(step_content) > 150:
+                    display_content = step_content[:150] + "..."
+                else:
+                    display_content = step_content
+                
+                # Use simple text formatting
+                all_steps_text += f"**{i+1}. {step_name}**  \n{display_content}\n\n"
+            
+            # Display as simple markdown
+            st.markdown(all_steps_text)
+        else:
+            st.info("Noch keine Steps ausgeführt")
 
 # Initial sidebar display
 update_sidebar_display()
@@ -173,16 +224,15 @@ if prompt := st.chat_input("Ihre Frage..."):
                 progress_placeholder = status_container.empty()
                 
                 def update_sidebar(step_type, content):
-                    # Avoid duplicates - check if this exact step was already added
-                    if (st.session_state.agent_steps and 
-                        st.session_state.agent_steps[-1]["type"] == step_type and
-                        st.session_state.agent_steps[-1]["content"] == content):
-                        return
+                    # Debug: Always add steps, no filtering during processing
+                    print(f"DEBUG: Adding step {len(st.session_state.agent_steps) + 1}: {step_type}")
                     
                     st.session_state.agent_steps.append({
                         "type": step_type,
                         "content": content
                     })
+                    
+                    print(f"DEBUG: Total steps now: {len(st.session_state.agent_steps)}")
                     
                     # Update agent status
                     st.session_state.agent_status = "thinking"
@@ -201,25 +251,12 @@ if prompt := st.chat_input("Ihre Frage..."):
                     
                     st.session_state.agent_current_step = step_translations.get(step_type, step_type)
                     
-                    # Show progress in chat area with steps - remove duplicates
-                    unique_steps = []
-                    seen_types = set()
-                    for step in st.session_state.agent_steps:
-                        if step['type'] not in seen_types:
-                            unique_steps.append(step)
-                            seen_types.add(step['type'])
-                        else:
-                            # Update existing step if it's the same type
-                            for i, existing_step in enumerate(unique_steps):
-                                if existing_step['type'] == step['type']:
-                                    unique_steps[i] = step
-                                    break
-                    
+                    # Show progress in chat area with all steps
                     progress_text = f"🔄 **{st.session_state.agent_current_step}...**\n\n"
                     progress_text += "**Bisherige Schritte:**\n"
-                    for i, step in enumerate(unique_steps):
+                    for i, step in enumerate(st.session_state.agent_steps):
                         step_name = step_translations.get(step['type'], step['type'])
-                        progress_text += f"{'✅' if i < len(unique_steps)-1 else '⏳'} {step_name}\n"
+                        progress_text += f"{'✅' if i < len(st.session_state.agent_steps)-1 else '⏳'} {step_name}\n"
                     
                     progress_placeholder.info(progress_text)
                     
@@ -229,8 +266,51 @@ if prompt := st.chat_input("Ihre Frage..."):
                         tokens = int(content.split("Total: ")[1].split(" tokens")[0])
                         st.session_state.current_tokens = tokens
                     
-                    # Force sidebar update
-                    update_sidebar_display()
+                    # Force sidebar update (but only status, not full history during processing)
+                    with status_box_placeholder:
+                        if st.session_state.agent_status == "thinking":
+                            # Get the latest step details for more context
+                            detail_text = "Agent arbeitet..."
+                            if st.session_state.agent_steps:
+                                latest_step = st.session_state.agent_steps[-1]
+                                step_content = latest_step.get('content', '')
+                                
+                                # Extract meaningful details from step content
+                                if latest_step['type'] == "API Request":
+                                    if "Calling:" in step_content:
+                                        url = step_content.split("Calling: ")[-1]
+                                        detail_text = f"Rufe API auf: {url.split('/')[-1]}"
+                                    elif "Versuch" in step_content:
+                                        detail_text = step_content
+                                elif latest_step['type'] == "API URL Generation":
+                                    if "Generated URL:" in step_content or "URL generiert:" in step_content:
+                                        url = step_content.split(": ")[-1]
+                                        detail_text = f"URL erstellt: {url.split('/')[-1]}"
+                                elif latest_step['type'] == "Error Correction":
+                                    detail_text = step_content
+                                elif latest_step['type'] == "Intent Classification":
+                                    if "Intent:" in step_content:
+                                        intent = step_content.split("Intent: ")[-1]
+                                        detail_text = f"Erkannt als: {intent}"
+                                elif latest_step['type'] == "Date Enhancement":
+                                    if "Zeitfilter" in step_content:
+                                        detail_text = "Zeitfilter hinzugefügt"
+                                    elif "keine Zeitangaben" in step_content.lower():
+                                        detail_text = "Keine Zeitangaben erkannt"
+                                elif latest_step['type'] == "Summarization":
+                                    detail_text = "Erstelle nutzerfreundliche Antwort"
+                                else:
+                                    detail_text = step_content[:50] + "..." if len(step_content) > 50 else step_content
+                            
+                            st.markdown(f"""
+                            <div class="status-box thinking pulse-box">
+                                <h3 style="margin: 0;">🔍 {st.session_state.agent_current_step or "Analysiere..."}</h3>
+                                <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #666;">{detail_text}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    with token_metric_placeholder:
+                        st.metric("Tokens (aktuelle Anfrage)", st.session_state.current_tokens)
                 
                 response = asyncio.run(process_user_query(
                     st.session_state.kernel, 
@@ -252,11 +332,19 @@ if prompt := st.chat_input("Ihre Frage..."):
                 else:
                     st.error("Keine Antwort erhalten")
                 
+                # Debug: Show what we're saving
+                print(f"DEBUG: Saving {len(st.session_state.agent_steps)} steps to final history")
+                for i, step in enumerate(st.session_state.agent_steps):
+                    print(f"DEBUG: Step {i+1}: {step['type']}")
+                
+                # Save final steps for history display
+                st.session_state.final_agent_steps = st.session_state.agent_steps.copy()
+                
                 # Reset status to ready
                 st.session_state.agent_status = "ready"
                 st.session_state.agent_current_step = ""
                 
-                # Update sidebar to show ready state
+                # Update sidebar to show ready state and full step history
                 update_sidebar_display()
             except Exception as e:
                 response = f"❌ Ein Fehler ist aufgetreten: {str(e)}"

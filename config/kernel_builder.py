@@ -198,9 +198,9 @@ async def process_user_query(kernel: Kernel, user_query: str, step_callback=None
         intent_prompt = f"Du bist ein Intent-Klassifizierer...\nBenutzerfrage: {user_query}\n..."
         total_tokens += estimate_tokens(intent_prompt) + estimate_tokens(intent)
         
-        # Debug logging and callback
-        print(f"User Query: {user_query}")
-        print(f"Detected Intent: {intent}")
+        # Debug logging and callback (commented out for performance)
+        # print(f"User Query: {user_query}")
+        # print(f"Detected Intent: {intent}")
         
         if step_callback:
             step_callback("Intent Classification", f"Query: {user_query}\nIntent: {intent}")
