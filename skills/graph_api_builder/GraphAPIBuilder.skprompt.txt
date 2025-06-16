@@ -39,6 +39,10 @@ Beispiele für andere Ressourcen:
 - "Meine E-Mails" → /me/messages
 - "Unternehmensgeräte" → /devices
 - "Gelöschte Benutzer" → /directory/deletedItems/microsoft.graph.user
+- "Conditional Access Regeln" → /identity/conditionalAccess/policies
+- "Haben wir Conditional Access im Einsatz?" → /identity/conditionalAccess/policies
+- "CA Regeln" → /identity/conditionalAccess/policies
+- "Richtlinien für bedingten Zugriff" → /identity/conditionalAccess/policies
 
 Beispiele für Aktivitäts- und Audit-Abfragen:
 - "Wer war zuletzt aktiv?" → /auditLogs/signIns?$top=10&$orderby=createdDateTime desc

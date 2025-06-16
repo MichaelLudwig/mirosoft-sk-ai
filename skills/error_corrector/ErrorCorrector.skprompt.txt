@@ -13,6 +13,16 @@ MFA/Multi-Factor Authentication:
 - Lösung: Verwende /users und lade alle Daten, da MFA-Informationen nicht filterbar sind
 - Beispiel: /users?$select=id,displayName,strongAuthenticationDetail
 
+Conditional Access:
+- Problem: Fehlende Berechtigungen für /identity/conditionalAccess/policies
+- Lösung: Versuche alternative Endpoints oder vereinfache die Abfrage
+- Beispiel: Statt /identity/conditionalAccess/policies → /policies/conditionalAccessPolicies
+
+Berechtigungsfehler (Forbidden/Unauthorized):
+- Problem: Keine ausreichenden Berechtigungen für den Endpoint
+- Lösung: Verwende einen allgemeineren Endpoint oder entferne spezifische Parameter
+- Beispiel: Statt /directoryRoles → /users (für Admin-Abfragen)
+
 Ungültige Filter:
 - Problem: Filter-Parameter wird nicht unterstützt
 - Lösung: Entferne den Filter oder verwende einen unterstützten Filter
@@ -21,6 +31,11 @@ Ungültige Filter:
 OData-Syntax Fehler:
 - Problem: Falsche OData-Syntax
 - Lösung: Korrigiere die Syntax gemäß OData v4 Standards
+
+Endpoint nicht gefunden:
+- Problem: Der angegebene Endpoint existiert nicht
+- Lösung: Verwende die korrekte Graph API v1.0 URL
+- Beispiel: Statt /conditionalAccess → /identity/conditionalAccess/policies
 
 WICHTIG: Antworte NUR mit der korrigierten URL, KEINE Erklärungen, KEINE Prefix wie "Korrigierte URL:"!
 

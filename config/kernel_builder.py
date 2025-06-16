@@ -283,10 +283,16 @@ Assistent:"""
             # Check if response contains an error
             try:
                 response_data = json.loads(str(api_response))
-                if "error" in response_data and response_data.get("status_code", 0) >= 400:
+                # Check for API errors (status_code >= 400) or general errors
+                has_error = ("error" in response_data and 
+                           (response_data.get("status_code", 0) >= 400 or 
+                            response_data.get("status_code") is None))
+                
+                if has_error:
                     if attempt < max_retries - 1:  # Not the last attempt
+                        error_message = response_data.get("error", "Unknown error")
                         if step_callback:
-                            step_callback("Error Correction", f"Fehler erkannt, korrigiere URL (Versuch {attempt + 1})...|||0")
+                            step_callback("Error Correction", f"Fehler erkannt: {error_message[:50]}...|||0")
                         
                         # Try to correct the error
                         error_corrector = kernel.get_function("error_corrector", "ErrorCorrector")
@@ -295,7 +301,7 @@ Assistent:"""
                             KernelArguments(
                                 original_query=user_query,
                                 failed_url=api_path,
-                                error_message=response_data.get("error", "Unknown error"),
+                                error_message=error_message,
                                 error_response=str(api_response)
                             )
                         )
@@ -303,7 +309,7 @@ Assistent:"""
                         corrected_api_path = str(corrected_url_result).strip()
                         if corrected_api_path and corrected_api_path != api_path:
                             # Track tokens for error correction - this is another LLM call
-                            error_prompt_content = f"Du bist ein Experte für Microsoft Graph API Fehlerkorrektur.\nAnalysiere den Fehler und korrigiere die API-URL.\n\nUrsprüngliche Anfrage: {user_query}\nFehlgeschlagene URL: {api_path}\nFehlermeldung: {response_data.get('error', 'Unknown error')}\nFehlerdetails: {str(api_response)}"
+                            error_prompt_content = f"Du bist ein Experte für Microsoft Graph API Fehlerkorrektur.\nAnalysiere den Fehler und korrigiere die API-URL.\n\nUrsprüngliche Anfrage: {user_query}\nFehlgeschlagene URL: {api_path}\nFehlermeldung: {error_message}\nFehlerdetails: {str(api_response)}"
                             error_prompt_tokens = estimate_tokens(error_prompt_content)
                             error_response_tokens = estimate_tokens(corrected_api_path)
                             error_total_tokens = error_prompt_tokens + error_response_tokens
@@ -314,13 +320,21 @@ Assistent:"""
                                 step_callback("Error Correction", f"URL korrigiert zu: {api_path}|||{error_total_tokens}")
                             continue  # Retry with corrected URL
                         else:
+                            if step_callback:
+                                step_callback("Error Correction", f"Keine Korrektur möglich|||0")
                             break  # No correction possible
                     else:
                         break  # Last attempt, use the error response
                 else:
                     break  # Success, exit retry loop
-            except:
-                break  # Can't parse response, exit retry loop
+            except Exception as parse_error:
+                # If we can't parse the response, treat it as an error
+                if attempt < max_retries - 1:
+                    if step_callback:
+                        step_callback("Error Correction", f"Response-Parsing-Fehler: {str(parse_error)[:50]}...|||0")
+                    break  # Can't parse response, can't retry meaningfully
+                else:
+                    break  # Last attempt
         
         if step_callback:
             # Truncate response for display
