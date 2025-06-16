@@ -72,13 +72,52 @@ with st.sidebar:
     st.title("🔍 Agent Monitor")
     
     # Agent Status Box
-    status_container = st.container()
-    with status_container:
+    status_box_placeholder = st.empty()
+    
+    # Token Counter
+    token_metric_placeholder = st.empty()
+
+# Update sidebar display function
+def update_sidebar_display():
+    with status_box_placeholder:
         if st.session_state.agent_status == "thinking":
+            # Get the latest step details for more context
+            detail_text = "Agent arbeitet..."
+            if st.session_state.agent_steps:
+                latest_step = st.session_state.agent_steps[-1]
+                step_content = latest_step.get('content', '')
+                
+                # Extract meaningful details from step content
+                if latest_step['type'] == "API Request":
+                    if "Calling:" in step_content:
+                        url = step_content.split("Calling: ")[-1]
+                        detail_text = f"Rufe API auf: {url.split('/')[-1]}"
+                    elif "Versuch" in step_content:
+                        detail_text = step_content
+                elif latest_step['type'] == "API URL Generation":
+                    if "Generated URL:" in step_content or "URL generiert:" in step_content:
+                        url = step_content.split(": ")[-1]
+                        detail_text = f"URL erstellt: {url.split('/')[-1]}"
+                elif latest_step['type'] == "Error Correction":
+                    detail_text = step_content
+                elif latest_step['type'] == "Intent Classification":
+                    if "Intent:" in step_content:
+                        intent = step_content.split("Intent: ")[-1]
+                        detail_text = f"Erkannt als: {intent}"
+                elif latest_step['type'] == "Date Enhancement":
+                    if "Zeitfilter" in step_content:
+                        detail_text = "Zeitfilter hinzugefügt"
+                    elif "keine Zeitangaben" in step_content.lower():
+                        detail_text = "Keine Zeitangaben erkannt"
+                elif latest_step['type'] == "Summarization":
+                    detail_text = "Erstelle nutzerfreundliche Antwort"
+                else:
+                    detail_text = step_content[:50] + "..." if len(step_content) > 50 else step_content
+            
             st.markdown(f"""
             <div class="status-box thinking pulse-box">
                 <h3 style="margin: 0;">🔍 {st.session_state.agent_current_step or "Analysiere..."}</h3>
-                <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #666;">Agent arbeitet...</p>
+                <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #666;">{detail_text}</p>
             </div>
             """, unsafe_allow_html=True)
         else:
@@ -89,26 +128,11 @@ with st.sidebar:
             </div>
             """, unsafe_allow_html=True)
     
-    # Token Counter
-    st.metric("Tokens (aktuelle Anfrage)", st.session_state.current_tokens)
-    
-    # Agent Steps
-    st.markdown("### 🤖 Agent Thinking")
-    
-    # Display steps
-    if st.session_state.agent_steps:
-        for i, step in enumerate(st.session_state.agent_steps):
-            with st.expander(f"Step {i+1}: {step['type']}", expanded=(i == len(st.session_state.agent_steps) - 1)):
-                st.code(step['content'], language="text")
-    else:
-        st.info("Warte auf Anfrage...")
-    
-    # Clear steps button
-    if st.button("Clear History", type="secondary"):
-        st.session_state.agent_steps = []
-        st.session_state.current_tokens = 0
-        st.session_state.agent_status = "ready"
-        st.session_state.agent_current_step = ""
+    with token_metric_placeholder:
+        st.metric("Tokens (aktuelle Anfrage)", st.session_state.current_tokens)
+
+# Initial sidebar display
+update_sidebar_display()
 
 # Main area
 st.title("GraphGPT - Microsoft 365 Chat Agent")
@@ -149,6 +173,12 @@ if prompt := st.chat_input("Ihre Frage..."):
                 progress_placeholder = status_container.empty()
                 
                 def update_sidebar(step_type, content):
+                    # Avoid duplicates - check if this exact step was already added
+                    if (st.session_state.agent_steps and 
+                        st.session_state.agent_steps[-1]["type"] == step_type and
+                        st.session_state.agent_steps[-1]["content"] == content):
+                        return
+                    
                     st.session_state.agent_steps.append({
                         "type": step_type,
                         "content": content
@@ -165,17 +195,31 @@ if prompt := st.chat_input("Ihre Frage..."):
                         "API Request": "Rufe Daten ab",
                         "API Response": "Verarbeite Antwort",
                         "Summarization": "Erstelle Zusammenfassung",
-                        "Token Count": "Zähle Tokens"
+                        "Token Count": "Zähle Tokens",
+                        "Error Correction": "Korrigiere Fehler"
                     }
                     
                     st.session_state.agent_current_step = step_translations.get(step_type, step_type)
                     
-                    # Show progress in chat area with steps
+                    # Show progress in chat area with steps - remove duplicates
+                    unique_steps = []
+                    seen_types = set()
+                    for step in st.session_state.agent_steps:
+                        if step['type'] not in seen_types:
+                            unique_steps.append(step)
+                            seen_types.add(step['type'])
+                        else:
+                            # Update existing step if it's the same type
+                            for i, existing_step in enumerate(unique_steps):
+                                if existing_step['type'] == step['type']:
+                                    unique_steps[i] = step
+                                    break
+                    
                     progress_text = f"🔄 **{st.session_state.agent_current_step}...**\n\n"
                     progress_text += "**Bisherige Schritte:**\n"
-                    for i, step in enumerate(st.session_state.agent_steps):
+                    for i, step in enumerate(unique_steps):
                         step_name = step_translations.get(step['type'], step['type'])
-                        progress_text += f"{'✅' if i < len(st.session_state.agent_steps)-1 else '⏳'} {step_name}\n"
+                        progress_text += f"{'✅' if i < len(unique_steps)-1 else '⏳'} {step_name}\n"
                     
                     progress_placeholder.info(progress_text)
                     
@@ -184,6 +228,9 @@ if prompt := st.chat_input("Ihre Frage..."):
                         # Extract total tokens from format "Total: X tokens ..."
                         tokens = int(content.split("Total: ")[1].split(" tokens")[0])
                         st.session_state.current_tokens = tokens
+                    
+                    # Force sidebar update
+                    update_sidebar_display()
                 
                 response = asyncio.run(process_user_query(
                     st.session_state.kernel, 
@@ -208,9 +255,17 @@ if prompt := st.chat_input("Ihre Frage..."):
                 # Reset status to ready
                 st.session_state.agent_status = "ready"
                 st.session_state.agent_current_step = ""
+                
+                # Update sidebar to show ready state
+                update_sidebar_display()
             except Exception as e:
                 response = f"❌ Ein Fehler ist aufgetreten: {str(e)}"
                 st.error(response)
+                
+                # Reset status to ready even on error
+                st.session_state.agent_status = "ready"
+                st.session_state.agent_current_step = ""
+                update_sidebar_display()
     
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})

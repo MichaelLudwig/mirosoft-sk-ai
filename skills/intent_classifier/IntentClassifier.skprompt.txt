@@ -4,9 +4,10 @@ Analysiere die Benutzerfrage SEHR GENAU und bestimme, ob sie sich auf Microsoft 
 Benutzerfrage: {{$input}}
 
 WICHTIG: 
-- Nur Fragen die EXPLIZIT nach Microsoft 365 Ressourcen fragen, sind GRAPH_API
+- Fragen zu Benutzern, Gruppen, Administratoren, Rechten, Rollen in einem IT-Kontext sind meist GRAPH_API
+- Keywords wie "Tenant", "Benutzer", "Admin", "Rechte", "Rollen", "MFA" deuten auf GRAPH_API hin
 - Allgemeine Wissensfragen, Geografie, Geschichte, etc. sind IMMER GENERAL
-- Bei Unsicherheit: GENERAL
+- Bei Unsicherheit zwischen IT-System und Allgemeinwissen: GRAPH_API
 
 Antworte NUR mit einem der folgenden Werte (NICHTS ANDERES!):
 GRAPH_API
@@ -19,6 +20,13 @@ Beispiele für GRAPH_API:
 - "Zeige meine E-Mails"
 - "Wer ist in der Vertriebsgruppe?"
 - "SharePoint Seiten anzeigen"
+- "Welche Benutzer haben privilegierte Rechte?"
+- "Administratoren im Tenant"
+- "Benutzer mit Admin-Rechten"
+- "Globale Administratoren"
+- "Wer hat MFA aktiviert?"
+- "Benutzer mit erweiterten Berechtigungen"
+- "Directory-Rollen anzeigen"
 
 Beispiele für GENERAL:
 - "Was ist die Hauptstadt von Deutschland?"

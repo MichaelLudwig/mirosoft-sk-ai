@@ -22,6 +22,9 @@ Beispiele für Benutzer-Abfragen:
 - "Die letzten 5 erstellten Benutzer" → /users?$orderby=createdDateTime desc&$top=5
 - "Benutzer mit MFA aktiviert" → /users?$select=id,displayName,strongAuthenticationDetail
 - "MFA Status" → /users?$select=id,displayName,strongAuthenticationDetail
+- "Privilegierte Benutzer" → /directoryRoles?$expand=members
+- "Administratoren" → /directoryRoles?$expand=members
+- "Benutzer mit Admin-Rechten" → /directoryRoles?$expand=members
 
 Beispiele für Gruppen-Abfragen:
 - "Wie viele Gruppen gibt es?" → /groups/$count

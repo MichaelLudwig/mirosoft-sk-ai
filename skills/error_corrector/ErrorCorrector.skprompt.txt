@@ -22,6 +22,10 @@ OData-Syntax Fehler:
 - Problem: Falsche OData-Syntax
 - Lösung: Korrigiere die Syntax gemäß OData v4 Standards
 
-Antworte NUR mit der korrigierten URL, keine Erklärungen:
+WICHTIG: Antworte NUR mit der korrigierten URL, KEINE Erklärungen, KEINE Prefix wie "Korrigierte URL:"!
 
-Korrigierte URL:
+Beispiele:
+- Fehlerhaft: "Korrigierte URL: /users" 
+- Korrekt: "/users"
+
+Antwort:
