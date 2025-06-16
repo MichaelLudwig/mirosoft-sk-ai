@@ -5,7 +5,9 @@
       "Bash(ls:*)",
       "Bash(mkdir:*)",
       "Bash(python3:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.docker.com)"
     ],
     "deny": []
   }

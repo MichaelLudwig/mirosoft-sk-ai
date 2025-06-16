@@ -7,7 +7,7 @@ from semantic_kernel.contents import ChatMessageContent
 from semantic_kernel.prompt_template import InputVariable
 # import tiktoken  # Optional - install with: pip install tiktoken
 import json
-from skills.graph_api_request import GraphAPIRequestSkill
+from skills.graph_api_request_simplified import GraphAPIRequestSkill
 from config.date_helper import enhance_prompt_with_date
 
 
@@ -245,6 +245,20 @@ Assistent:"""
             else:
                 step_callback("Date Enhancement", f"Keine Zeitangaben gefunden - überspringe|||{date_tokens}")
         
+        # Check if this is an app permissions query that needs multi-query approach
+        is_app_permissions_query = any(keyword in user_query.lower() for keyword in [
+            "rechte", "berechtigungen", "permissions", "zugeteilte rechte", "liste", "app registrierung"
+        ]) and any(keyword in user_query.lower() for keyword in ["app", "anwendung", "registrierung"])
+        
+        print(f"DEBUG: App permissions query check: {is_app_permissions_query}")
+        print(f"DEBUG: Query contains rechte keywords: {[k for k in ['rechte', 'berechtigungen', 'permissions', 'zugeteilte rechte', 'liste', 'app registrierung'] if k in user_query.lower()]}")
+        print(f"DEBUG: Query contains app keywords: {[k for k in ['app', 'anwendung', 'registrierung'] if k in user_query.lower()]}")
+        
+        if is_app_permissions_query:
+            # Multi-query approach like Lokka
+            return await process_app_permissions_query(kernel, user_query, step_callback, total_tokens)
+        
+        # Regular single API call
         api_builder = kernel.get_function("graph_api_builder", "GraphAPIBuilder")
         api_url_result = await kernel.invoke(
             api_builder,
@@ -274,10 +288,27 @@ Assistent:"""
             if step_callback:
                 step_callback("API Request", f"Versuch {attempt + 1}/{max_retries}: https://graph.microsoft.com/v1.0{api_path}|||0")
                 
+            # Determine if we need special parameters
+            fetch_all = "alle" in user_query.lower() or "list" in user_query.lower()
+            
+            # ConsistencyLevel is auto-detected in the skill, but we can override here
+            consistency_level = None
+            if ("conditional access" in user_query.lower() or 
+                "ca regeln" in user_query.lower() or 
+                "richtlinien" in user_query.lower()):
+                consistency_level = "eventual"
+            
             graph_request = kernel.get_function("GraphAPIRequest", "execute_graph_request")
             api_response = await kernel.invoke(
                 graph_request,
-                KernelArguments(api_path=api_path)
+                KernelArguments(
+                    api_path=api_path,
+                    method="GET",
+                    fetch_all=fetch_all,
+                    consistency_level=consistency_level,
+                    query_params={},
+                    body={}
+                )
             )
             
             # Check if response contains an error
@@ -371,3 +402,239 @@ Assistent:"""
         
     except Exception as e:
         return f"❌ Fehler bei der Verarbeitung: {str(e)}"
+
+
+async def process_app_permissions_query(kernel: Kernel, user_query: str, step_callback=None, total_tokens: int = 0) -> str:
+    """
+    Multi-query approach for app permissions like Lokka
+    1. Query /applications for app info
+    2. Query /servicePrincipals for permission name mappings
+    3. Translate GUIDs to human-readable names
+    """
+    
+    try:
+        # Extract app name from query
+        app_name = extract_app_name_from_query(user_query)
+        print(f"DEBUG Multi-Query: Extracted app_name: '{app_name}' from query: '{user_query}'")
+        
+        if not app_name:
+            return "❌ Konnte den App-Namen aus der Anfrage nicht extrahieren."
+        
+        if step_callback:
+            step_callback("Multi-Query Analysis", f"Analysiere App: {app_name}|||0")
+        
+        # Step 1: Get application details
+        graph_request = kernel.get_function("GraphAPIRequest", "execute_graph_request")
+        # Try exact match first, then contains match if exact fails
+        app_query = f"/applications?$filter=displayName eq '{app_name}'&$select=requiredResourceAccess,displayName,id,appId"
+        
+        if step_callback:
+            step_callback("Query 1/3", f"App-Details abrufen: {app_query}|||0")
+        
+        app_response = await kernel.invoke(
+            graph_request,
+            KernelArguments(
+                api_path=app_query,
+                method="GET",
+                fetch_all=False,
+                consistency_level=None,
+                query_params={},
+                body={}
+            )
+        )
+        
+        # Parse app response
+        try:
+            print(f"DEBUG Multi-Query: Raw app response: {str(app_response)[:500]}")
+            
+            # Handle the wrapped response format from our simplified skill
+            response_str = str(app_response)
+            if "Result for Graph API v1.0" in response_str:
+                # Extract JSON from our formatted response
+                json_start = response_str.find('{')
+                if json_start > 0:
+                    json_content = response_str[json_start:]
+                    app_data = json.loads(json_content)
+                else:
+                    return f"❌ Keine JSON-Daten in der App-Response gefunden."
+            else:
+                app_data = json.loads(response_str)
+            
+            print(f"DEBUG Multi-Query: Parsed app_data keys: {list(app_data.keys()) if isinstance(app_data, dict) else 'Not a dict'}")
+            
+            if "value" not in app_data or not app_data["value"]:
+                return f"❌ App '{app_name}' nicht gefunden. (Gefundene Keys: {list(app_data.keys()) if isinstance(app_data, dict) else 'Keine'})"
+            
+            app_info = app_data["value"][0]
+            required_resource_access = app_info.get("requiredResourceAccess", [])
+            
+            print(f"DEBUG Multi-Query: App gefunden: {app_info.get('displayName')}, Berechtigungen: {len(required_resource_access)}")
+            
+            if not required_resource_access:
+                return f"✅ Die App '{app_name}' hat keine spezifischen API-Berechtigungen konfiguriert."
+            
+        except Exception as e:
+            return f"❌ Fehler beim Parsen der App-Daten: {str(e)}. Raw response: {str(app_response)[:200]}"
+        
+        # Step 2: Get Microsoft Graph ServicePrincipal for permission name mapping
+        if step_callback:
+            step_callback("Query 2/3", "Microsoft Graph ServicePrincipal abrufen|||0")
+        
+        graph_sp_query = "/servicePrincipals?$filter=appId eq '00000003-0000-0000-c000-000000000000'&$select=id,displayName,appRoles,oauth2PermissionScopes"
+        
+        graph_sp_response = await kernel.invoke(
+            graph_request,
+            KernelArguments(
+                api_path=graph_sp_query,
+                method="GET",
+                fetch_all=False,
+                consistency_level=None,
+                query_params={},
+                body={}
+            )
+        )
+        
+        # Parse ServicePrincipal response
+        try:
+            print(f"DEBUG Multi-Query: Raw SP response: {str(graph_sp_response)[:500]}")
+            
+            # Handle the wrapped response format from our simplified skill
+            sp_response_str = str(graph_sp_response)
+            if "Result for Graph API v1.0" in sp_response_str:
+                # Extract JSON from our formatted response
+                json_start = sp_response_str.find('{')
+                if json_start > 0:
+                    json_content = sp_response_str[json_start:]
+                    sp_data = json.loads(json_content)
+                else:
+                    return f"❌ Keine JSON-Daten in der ServicePrincipal-Response gefunden."
+            else:
+                sp_data = json.loads(sp_response_str)
+            
+            print(f"DEBUG Multi-Query: Parsed sp_data keys: {list(sp_data.keys()) if isinstance(sp_data, dict) else 'Not a dict'}")
+            
+            if "value" not in sp_data or not sp_data["value"]:
+                return "❌ Microsoft Graph ServicePrincipal nicht gefunden."
+            
+            graph_sp = sp_data["value"][0]
+            app_roles = graph_sp.get("appRoles", [])
+            oauth2_scopes = graph_sp.get("oauth2PermissionScopes", [])
+            
+            print(f"DEBUG Multi-Query: Found {len(app_roles)} app roles and {len(oauth2_scopes)} OAuth2 scopes")
+            
+            # Build permission mapping
+            permission_mapping = {}
+            for role in app_roles:
+                permission_mapping[role.get("id")] = {
+                    "name": role.get("value"),
+                    "displayName": role.get("displayName"),
+                    "type": "Application"
+                }
+            
+            for scope in oauth2_scopes:
+                permission_mapping[scope.get("id")] = {
+                    "name": scope.get("value"),
+                    "displayName": scope.get("displayName"),
+                    "type": "Delegated"
+                }
+                
+        except Exception as e:
+            return f"❌ Fehler beim Parsen der ServicePrincipal-Daten: {str(e)}. Raw SP response: {str(graph_sp_response)[:200]}"
+        
+        # Step 3: Translate permissions to human-readable names
+        if step_callback:
+            step_callback("Query 3/3", "Berechtigungen übersetzen|||0")
+        
+        translated_permissions = []
+        for resource in required_resource_access:
+            resource_id = resource.get("resourceAppId")
+            resource_access = resource.get("resourceAccess", [])
+            
+            if resource_id == "00000003-0000-0000-c000-000000000000":  # Microsoft Graph
+                api_name = "Microsoft Graph"
+                for access in resource_access:
+                    permission_id = access.get("id")
+                    permission_type = "Application" if access.get("type") == "Role" else "Delegated"
+                    
+                    if permission_id in permission_mapping:
+                        perm_info = permission_mapping[permission_id]
+                        translated_permissions.append({
+                            "api": api_name,
+                            "permission": perm_info["name"],
+                            "displayName": perm_info["displayName"],
+                            "type": permission_type,
+                            "id": permission_id
+                        })
+                    else:
+                        translated_permissions.append({
+                            "api": api_name,
+                            "permission": f"Unknown ({permission_id})",
+                            "displayName": "Unbekannte Berechtigung",
+                            "type": permission_type,
+                            "id": permission_id
+                        })
+            else:
+                # Other APIs - would need additional ServicePrincipal queries
+                translated_permissions.append({
+                    "api": f"Unknown API ({resource_id})",
+                    "permission": "Weitere API-Abfrage erforderlich",
+                    "displayName": "Weitere API-Abfrage erforderlich",
+                    "type": "Unknown",
+                    "id": resource_id
+                })
+        
+        # Format response like Lokka
+        result = f"🔍 Berechtigungsanalyse für App '{app_name}':\n\n"
+        result += f"📋 **Konfigurierte Berechtigungen ({len(translated_permissions)}):**\n\n"
+        
+        app_perms = [p for p in translated_permissions if p["type"] == "Application"]
+        delegated_perms = [p for p in translated_permissions if p["type"] == "Delegated"]
+        
+        if app_perms:
+            result += "**App-Berechtigungen (Application):**\n\n"
+            for perm in app_perms:
+                result += f"- {perm['permission']} - {perm['displayName']}\n"
+            result += "\n"
+        
+        if delegated_perms:
+            result += "**Delegierte Berechtigungen (Delegated):**\n\n"
+            for perm in delegated_perms:
+                result += f"- {perm['permission']} - {perm['displayName']}\n"
+            result += "\n"
+        
+        result += f"✅ **Analyse abgeschlossen** - {len(app_perms)} App-Berechtigungen, {len(delegated_perms)} delegierte Berechtigungen"
+        
+        return result
+        
+    except Exception as e:
+        return f"❌ Fehler bei der Multi-Query-Analyse: {str(e)}"
+
+
+def extract_app_name_from_query(query: str) -> str:
+    """Extract app name from user query"""
+    query_lower = query.lower()
+    
+    # Look for patterns like "app registrierung X", "rechte der app X", etc.
+    import re
+    
+    # Pattern: "app registrierung [name]"
+    match = re.search(r'app\s+registrierung\s+([^auf]+)', query_lower)
+    if match:
+        return match.group(1).strip()
+    
+    # Pattern: "rechte der app [name]" or "berechtigungen der app [name]"
+    match = re.search(r'(?:rechte|berechtigungen)\s+der\s+app\s+([^auf]+)', query_lower)
+    if match:
+        return match.group(1).strip()
+    
+    # Pattern: "app [name]"
+    match = re.search(r'app\s+([^\s]+(?:\s+[^\s]+)*?)(?:\s+auf|$)', query_lower)
+    if match:
+        return match.group(1).strip()
+    
+    # Fallback: look for quoted strings
+    match = re.search(r'[\'"]([^\'\"]+)[\'"]', query)
+    if match:
+        return match.group(1).strip()
+    
+    return None

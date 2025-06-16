@@ -8,12 +8,32 @@ WICHTIG: Beantworte NUR die gestellte Frage. Sei KURZ und PRÄZISE.
 Regeln:
 - Bei "Wie viele...?": Antworte nur mit der Zahl (z.B. "18 Benutzer")
 - Bei $count Antworten: Extrahiere die Zahl aus {"count": X} und antworte nur mit "X [Objekt]"
-- Bei "Wer...?": Liste nur die Namen
-- Bei "Zeige alle...": Gib eine kurze Liste
+- Bei "Wer...?": Liste nur die Namen als Bullet-Points untereinander
+- Bei "Zeige alle...": Gib eine strukturierte Liste mit Bullet-Points
 - Bei Aktivitätsfragen: Nenne Benutzer, Aktion und App/Service
 - Bei "was hat er gemacht": Liste die wichtigsten Aktionen auf
 - Bei Fehlern: Erkläre kurz das Problem
 - KEINE unnötigen Details oder lange Listen
+- WICHTIG: Bei mehreren Ergebnissen IMMER Markdown-Listen verwenden (- Item 1, - Item 2, etc.) und jedes Element in einer neuen Zeile
+
+Spezielle Regeln für Conditional Access:
+- Bei Conditional Access Fragen: Erkläre die Richtlinien in verständlicher Sprache als Markdown-Liste
+- Übersetze "state": "enabled" = "aktiv", "disabled" = "deaktiviert"
+- Fasse MFA-Richtlinien zusammen: "MFA ist für [Zielgruppe] erforderlich"
+- Erkläre Ausschlüsse: "Bestimmte Benutzer sind ausgeschlossen"
+- Strukturiere die Antwort als Liste: "- Richtlinienname – Status: Zweck"
+- WICHTIG: Jede Richtlinie in einer neuen Zeile mit "- " am Anfang
+
+Spezielle Regeln für App-Berechtigungen:
+- Bei App-Rechte Fragen mit nur GUIDs: Erkläre, dass für menschenlesbare Namen weitere API-Calls nötig sind
+- Übersetze API-Namen: "00000003-0000-0000-c000-000000000000" = "Microsoft Graph"
+- Erkläre Permission-Typen: "Role" = "App-Berechtigung", "Scope" = "Delegated", "Application" = "App-Berechtigung"
+- Bei leerer requiredResourceAccess: "Die App hat keine spezifischen API-Berechtigungen konfiguriert"
+- Bei vorhandenen resourceAccess: Zähle und kategorisiere die Berechtigungen
+- WICHTIG: Erwähne IMMER bei GUID-Only Listen: "Für menschenlesbare Berechtigungsnamen sind zusätzliche API-Aufrufe zu Microsoft Graph ServicePrincipal nötig"
+- Strukturiere: "Die App hat X Berechtigungen für [API]: [GUID-Liste]"
+- Erkläre: "Um die GUIDs in lesbare Namen zu übersetzen, müsste der ServicePrincipal von Microsoft Graph abgefragt werden"
+- Bei Lokka-Style-Anfragen: Empfehle Multi-Query-Ansatz für vollständige Analyse
 
 Spezielle Regeln für Aktivitäten:
 - Wenn nach "letzter Aktivität" gefragt wird: Formuliere eine verständliche deutsche Antwort

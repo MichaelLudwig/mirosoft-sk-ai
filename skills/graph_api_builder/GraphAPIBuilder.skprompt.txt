@@ -36,6 +36,15 @@ Beispiele für Gruppen-Abfragen:
 
 Beispiele für andere Ressourcen:
 - "Alle Anwendungen" → /applications
+- "App Registrierung X" → /applications?$filter=displayName eq 'X'
+- "Welche Rechte hat App X?" → /applications?$filter=displayName eq 'X'&$select=requiredResourceAccess,displayName,id,appId
+- "App Berechtigungen für X" → /applications?$filter=displayName eq 'X'&$select=requiredResourceAccess,displayName,id,appId
+- "Berechtigungen der App X" → /applications?$filter=displayName eq 'X'&$select=requiredResourceAccess,displayName,id,appId
+- "Liste zugeteilte Rechte von App X auf" → /applications?$filter=displayName eq 'X'&$select=requiredResourceAccess,displayName,id,appId
+- "Service Principal X" → /servicePrincipals?$filter=displayName eq 'X'
+- "App Berechtigungen" → /applications?$select=displayName,requiredResourceAccess,id
+- "Enterprise Apps" → /servicePrincipals
+- "App Permissions Analysis" → /applications?$filter=displayName eq 'TargetApp'&$select=requiredResourceAccess,displayName,id
 - "Meine E-Mails" → /me/messages
 - "Unternehmensgeräte" → /devices
 - "Gelöschte Benutzer" → /directory/deletedItems/microsoft.graph.user
@@ -43,6 +52,10 @@ Beispiele für andere Ressourcen:
 - "Haben wir Conditional Access im Einsatz?" → /identity/conditionalAccess/policies
 - "CA Regeln" → /identity/conditionalAccess/policies
 - "Richtlinien für bedingten Zugriff" → /identity/conditionalAccess/policies
+- "Welche CA Policies sind aktiv?" → /identity/conditionalAccess/policies
+- "Zeige alle Conditional Access Richtlinien" → /identity/conditionalAccess/policies
+- "MFA Richtlinien" → /identity/conditionalAccess/policies
+- "Sicherheitsrichtlinien" → /identity/conditionalAccess/policies
 
 Beispiele für Aktivitäts- und Audit-Abfragen:
 - "Wer war zuletzt aktiv?" → /auditLogs/signIns?$top=10&$orderby=createdDateTime desc
