@@ -194,16 +194,18 @@ async def process_user_query(kernel: Kernel, user_query: str, step_callback=None
         )
         intent = str(intent_result).strip()
         
-        # Track tokens
-        intent_prompt = f"Du bist ein Intent-Klassifizierer...\nBenutzerfrage: {user_query}\n..."
-        total_tokens += estimate_tokens(intent_prompt) + estimate_tokens(intent)
+        # Track tokens for intent classification
+        intent_prompt_tokens = estimate_tokens(f"Du bist ein Intent-Klassifizierer für einen Microsoft 365 Chat-Assistenten.\nAnalysiere die Benutzerfrage SEHR GENAU...\nBenutzerfrage: {user_query}")
+        intent_response_tokens = estimate_tokens(intent)
+        intent_total_tokens = intent_prompt_tokens + intent_response_tokens
+        total_tokens += intent_total_tokens
         
         # Debug logging and callback (commented out for performance)
         # print(f"User Query: {user_query}")
         # print(f"Detected Intent: {intent}")
         
         if step_callback:
-            step_callback("Intent Classification", f"Query: {user_query}\nIntent: {intent}")
+            step_callback("Intent Classification", f"Query: {user_query}\nIntent: {intent}|||{intent_total_tokens}")
         
         # If it's a general query, respond as a normal chatbot
         if intent == "GENERAL":
@@ -231,22 +233,17 @@ Assistent:"""
         
         # For GRAPH_API queries, proceed with the normal flow
         # Step 1: Generate Graph API URL with enhanced date handling
-        if step_callback:
-            step_callback("Date Enhancement", "Überprüfe Zeitangaben...")
+        # Track tokens for date enhancement (minimal, just processing)
+        date_tokens = 5  # Minimal processing cost
+        total_tokens += date_tokens
         
         enhanced_query = enhance_prompt_with_date(user_query)
         
         if step_callback:
             if enhanced_query != user_query:
-                step_callback("Date Enhancement", f"Zeitfilter hinzugefügt: {enhanced_query}")
+                step_callback("Date Enhancement", f"Zeitfilter hinzugefügt: {enhanced_query}|||{date_tokens}")
             else:
-                step_callback("Date Enhancement", "Keine Zeitangaben gefunden - überspringe")
-        
-        # Track tokens for date enhancement
-        total_tokens += estimate_tokens(enhanced_query)
-        
-        if step_callback:
-            step_callback("API URL Generation", "Generiere Graph API URL...")
+                step_callback("Date Enhancement", f"Keine Zeitangaben gefunden - überspringe|||{date_tokens}")
         
         api_builder = kernel.get_function("graph_api_builder", "GraphAPIBuilder")
         api_url_result = await kernel.invoke(
@@ -255,12 +252,15 @@ Assistent:"""
         )
         api_path = str(api_url_result).strip()
         
-        # Track tokens for API generation
-        api_prompt = f"Du bist ein Experte für die Microsoft Graph API...\nBenutzerfrage: {enhanced_query}\n..."
-        total_tokens += estimate_tokens(api_prompt) + estimate_tokens(api_path)
+        # Track tokens for API generation - this is a major LLM call
+        api_prompt_content = f"Du bist ein Experte für die Microsoft Graph API.\nAnalysiere die Benutzerfrage und generiere die passende Graph API URL.\n\nBenutzerfrage: {enhanced_query}\n\nWichtige Hinweise:\n- Verwende die korrekte Graph API v1.0 Syntax\n- Nutze OData-Filter für Zeitabfragen ($filter)\n- Verwende korrekte Datumsformate (ISO 8601)\n- Berechne relative Zeitangaben basierend auf dem heutigen Datum\n- Gib NUR die URL zurück, keine Erklärungen\n\nBeispiele für Benutzer-Abfragen:\n..."
+        api_prompt_tokens = estimate_tokens(api_prompt_content)
+        api_response_tokens = estimate_tokens(api_path)
+        api_total_tokens = api_prompt_tokens + api_response_tokens
+        total_tokens += api_total_tokens
         
         if step_callback:
-            step_callback("API URL Generation", f"URL generiert: {api_path}")
+            step_callback("API URL Generation", f"URL generiert: {api_path}|||{api_total_tokens}")
         
         # Validate the API path
         if not api_path or api_path == "None":
@@ -272,7 +272,7 @@ Assistent:"""
         
         for attempt in range(max_retries):
             if step_callback:
-                step_callback("API Request", f"Versuch {attempt + 1}/{max_retries}: https://graph.microsoft.com/v1.0{api_path}")
+                step_callback("API Request", f"Versuch {attempt + 1}/{max_retries}: https://graph.microsoft.com/v1.0{api_path}|||0")
                 
             graph_request = kernel.get_function("GraphAPIRequest", "execute_graph_request")
             api_response = await kernel.invoke(
@@ -286,7 +286,7 @@ Assistent:"""
                 if "error" in response_data and response_data.get("status_code", 0) >= 400:
                     if attempt < max_retries - 1:  # Not the last attempt
                         if step_callback:
-                            step_callback("Error Correction", f"Fehler erkannt, korrigiere URL (Versuch {attempt + 1})...")
+                            step_callback("Error Correction", f"Fehler erkannt, korrigiere URL (Versuch {attempt + 1})...|||0")
                         
                         # Try to correct the error
                         error_corrector = kernel.get_function("error_corrector", "ErrorCorrector")
@@ -302,9 +302,16 @@ Assistent:"""
                         
                         corrected_api_path = str(corrected_url_result).strip()
                         if corrected_api_path and corrected_api_path != api_path:
+                            # Track tokens for error correction - this is another LLM call
+                            error_prompt_content = f"Du bist ein Experte für Microsoft Graph API Fehlerkorrektur.\nAnalysiere den Fehler und korrigiere die API-URL.\n\nUrsprüngliche Anfrage: {user_query}\nFehlgeschlagene URL: {api_path}\nFehlermeldung: {response_data.get('error', 'Unknown error')}\nFehlerdetails: {str(api_response)}"
+                            error_prompt_tokens = estimate_tokens(error_prompt_content)
+                            error_response_tokens = estimate_tokens(corrected_api_path)
+                            error_total_tokens = error_prompt_tokens + error_response_tokens
+                            total_tokens += error_total_tokens
+                            
                             api_path = corrected_api_path
                             if step_callback:
-                                step_callback("Error Correction", f"URL korrigiert zu: {api_path}")
+                                step_callback("Error Correction", f"URL korrigiert zu: {api_path}|||{error_total_tokens}")
                             continue  # Retry with corrected URL
                         else:
                             break  # No correction possible
@@ -318,12 +325,10 @@ Assistent:"""
         if step_callback:
             # Truncate response for display
             response_preview = str(api_response)[:500] + "..." if len(str(api_response)) > 500 else str(api_response)
-            step_callback("API Response", response_preview)
+            # API calls don't use LLM tokens, just network/processing
+            step_callback("API Response", f"{response_preview}|||0")
         
         # Step 3: Summarize the response
-        if step_callback:
-            step_callback("Summarization", "Generating user-friendly response...")
-            
         summarizer = kernel.get_function("summarizer", "Summarizer")
         summary = await kernel.invoke(
             summarizer,
@@ -335,15 +340,18 @@ Assistent:"""
         
         final_response = str(summary)
         
-        # Track tokens for summarization
-        summary_prompt = f"Du bist ein präziser Assistent...\nOriginalfrage: {user_query}\nAPI-Antwort: {str(api_response)}\n..."
-        total_tokens += estimate_tokens(summary_prompt) + estimate_tokens(final_response)
-        
-        # Add tokens for API response
-        total_tokens += estimate_tokens(str(api_response))
+        # Track tokens for summarization - this is another major LLM call
+        summary_prompt_content = f"Du bist ein präziser Assistent für Microsoft Graph API Abfragen.\n\nOriginalfrage: {user_query}\nAPI-Antwort: {str(api_response)}\n\nWICHTIG: Beantworte NUR die gestellte Frage. Sei KURZ und PRÄZISE.\n\nRegeln:\n- Bei \"Wie viele...?\": Antworte nur mit der Zahl (z.B. \"18 Benutzer\")\n- Bei \"Aktivitätsfragen: Nenne Benutzer, Aktion und App/Service\n- Bei \"was hat er gemacht\": Liste die wichtigsten Aktionen auf\n- Bei Fehlern: Erkläre kurz das Problem\n- KEINE unnötigen Details oder lange Listen"
+        summary_prompt_tokens = estimate_tokens(summary_prompt_content)
+        summary_response_tokens = estimate_tokens(final_response)
+        summary_total_tokens = summary_prompt_tokens + summary_response_tokens
+        total_tokens += summary_total_tokens
         
         if step_callback:
-            step_callback("Token Count", f"Total: {total_tokens} tokens (Input: {total_tokens - estimate_tokens(final_response)}, Output: {estimate_tokens(final_response)})")
+            step_callback("Summarization", f"Antwort erstellt|||{summary_total_tokens}")
+        
+        if step_callback:
+            step_callback("Token Count", f"Gesamt: {total_tokens} tokens|||{total_tokens}")
         
         return final_response
         

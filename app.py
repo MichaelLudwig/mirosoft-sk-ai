@@ -93,6 +93,10 @@ def update_sidebar_display():
                 latest_step = st.session_state.agent_steps[-1]
                 step_content = latest_step.get('content', '')
                 
+                # Remove token info for display parsing
+                if "|||" in step_content:
+                    step_content = step_content.split("|||")[0].strip()
+                
                 # Extract meaningful details from step content
                 if latest_step['type'] == "API Request":
                     if "Calling:" in step_content:
@@ -168,17 +172,29 @@ def update_sidebar_display():
                 step_name = step_translations.get(step['type'], step['type'])
                 step_content = step['content']
                 
-                # Show more content but still limit for readability
-                if len(step_content) > 150:
-                    display_content = step_content[:150] + "..."
+                # Check if content contains token info separated by |||
+                if "|||" in step_content:
+                    content_parts = step_content.split("|||")
+                    main_content = content_parts[0].strip()
+                    token_info = content_parts[1].strip() if len(content_parts) > 1 else ""
                 else:
-                    display_content = step_content
+                    main_content = step_content
+                    token_info = ""
                 
-                # Use simple text formatting
-                all_steps_text += f"**{i+1}. {step_name}**  \n{display_content}\n\n"
+                # Show more content but still limit for readability
+                if len(main_content) > 150:
+                    display_content = main_content[:150] + "..."
+                else:
+                    display_content = main_content
+                
+                # Use simple text formatting with token info as small text
+                all_steps_text += f"**{i+1}. {step_name}**  \n{display_content}\n"
+                if token_info:
+                    all_steps_text += f"<small>🔹 {token_info} tokens</small>\n"
+                all_steps_text += "\n"
             
-            # Display as simple markdown
-            st.markdown(all_steps_text)
+            # Display as markdown with HTML support for small tags
+            st.markdown(all_steps_text, unsafe_allow_html=True)
         else:
             st.info("Noch keine Steps ausgeführt")
 
@@ -262,9 +278,15 @@ if prompt := st.chat_input("Ihre Frage..."):
                     
                     # Extract token count if available
                     if step_type == "Token Count":
-                        # Extract total tokens from format "Total: X tokens ..."
-                        tokens = int(content.split("Total: ")[1].split(" tokens")[0])
-                        st.session_state.current_tokens = tokens
+                        # Extract total tokens from format "Gesamt: X tokens|||X" using separator
+                        if "|||" in content:
+                            token_part = content.split("|||")[1].strip()
+                            st.session_state.current_tokens = int(token_part)
+                        else:
+                            # Fallback for old format
+                            if "Gesamt: " in content:
+                                tokens = int(content.split("Gesamt: ")[1].split(" tokens")[0])
+                                st.session_state.current_tokens = tokens
                     
                     # Force sidebar update (but only status, not full history during processing)
                     with status_box_placeholder:
@@ -274,6 +296,10 @@ if prompt := st.chat_input("Ihre Frage..."):
                             if st.session_state.agent_steps:
                                 latest_step = st.session_state.agent_steps[-1]
                                 step_content = latest_step.get('content', '')
+                                
+                                # Remove token info for display parsing
+                                if "|||" in step_content:
+                                    step_content = step_content.split("|||")[0].strip()
                                 
                                 # Extract meaningful details from step content
                                 if latest_step['type'] == "API Request":
