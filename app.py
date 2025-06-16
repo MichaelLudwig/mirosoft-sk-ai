@@ -45,6 +45,46 @@ st.markdown("""
     background-color: #f0f2f6;
     border-color: #ddd;
 }
+
+.step-box {
+    padding: 0.8rem;
+    border-radius: 6px;
+    margin-bottom: 0.8rem;
+    border: 1px solid;
+}
+
+.step-box.openai {
+    background-color: #e3f2fd;
+    border-color: #1976d2;
+}
+
+.step-box.graph-api {
+    background-color: #f3e5f5;
+    border-color: #7b1fa2;
+}
+
+.step-box.internal {
+    background-color: #fff3e0;
+    border-color: #f57c00;
+}
+
+.step-title {
+    font-weight: bold;
+    margin-bottom: 0.3rem;
+    font-size: 0.9rem;
+}
+
+.step-content {
+    font-size: 0.85rem;
+    color: #555;
+    margin-bottom: 0.3rem;
+}
+
+.step-tokens {
+    font-size: 0.75rem;
+    color: #888;
+    font-style: italic;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -89,9 +129,24 @@ def update_sidebar_display():
         if st.session_state.agent_status == "thinking":
             # Get the latest step details for more context
             detail_text = "Agent arbeitet..."
+            step_category = "internal"  # Default
+            
             if st.session_state.agent_steps:
                 latest_step = st.session_state.agent_steps[-1]
                 step_content = latest_step.get('content', '')
+                
+                # Determine step category for coloring
+                step_categories = {
+                    "Intent Classification": "openai",
+                    "API URL Generation": "openai", 
+                    "Summarization": "openai",
+                    "Error Correction": "openai",
+                    "API Request": "graph-api",
+                    "API Response": "graph-api",
+                    "Date Enhancement": "internal",
+                    "Token Count": "internal"
+                }
+                step_category = step_categories.get(latest_step['type'], 'internal')
                 
                 # Remove token info for display parsing
                 if "|||" in step_content:
@@ -125,7 +180,7 @@ def update_sidebar_display():
                     detail_text = step_content[:50] + "..." if len(step_content) > 50 else step_content
             
             st.markdown(f"""
-            <div class="status-box thinking pulse-box">
+            <div class="step-box {step_category} pulse-box">
                 <h3 style="margin: 0;">🔍 {st.session_state.agent_current_step or "Analysiere..."}</h3>
                 <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #666;">{detail_text}</p>
             </div>
@@ -166,11 +221,29 @@ def update_sidebar_display():
                 "Error Correction": "Korrigiere Fehler"
             }
             
-            # Use simple text formatting - avoid HTML issues
-            all_steps_text = ""
+            # Define step categories and their colors
+            step_categories = {
+                # OpenAI calls (blue)
+                "Intent Classification": "openai",
+                "API URL Generation": "openai", 
+                "Summarization": "openai",
+                "Error Correction": "openai",
+                
+                # Graph API calls (purple)
+                "API Request": "graph-api",
+                "API Response": "graph-api",
+                
+                # Internal functions (yellow)
+                "Date Enhancement": "internal",
+                "Token Count": "internal"
+            }
+            
+            # Create colored step boxes
+            all_steps_html = ""
             for i, step in enumerate(steps_to_show):
                 step_name = step_translations.get(step['type'], step['type'])
                 step_content = step['content']
+                step_category = step_categories.get(step['type'], 'internal')
                 
                 # Check if content contains token info separated by |||
                 if "|||" in step_content:
@@ -182,19 +255,21 @@ def update_sidebar_display():
                     token_info = ""
                 
                 # Show more content but still limit for readability
-                if len(main_content) > 150:
-                    display_content = main_content[:150] + "..."
+                if len(main_content) > 120:
+                    display_content = main_content[:120] + "..."
                 else:
                     display_content = main_content
                 
-                # Use simple text formatting with token info as small text
-                all_steps_text += f"**{i+1}. {step_name}**  \n{display_content}\n"
-                if token_info:
-                    all_steps_text += f"<small>🔹 {token_info} tokens</small>\n"
-                all_steps_text += "\n"
+                # Escape HTML in content to prevent rendering issues
+                import html
+                display_content = html.escape(display_content)
+                
+                # Create colored step box with proper token handling
+                token_html = f'<div class="step-tokens">🔹 {token_info} tokens</div>' if token_info else ''
+                all_steps_html += f'<div class="step-box {step_category}"><div class="step-title">{i+1}. {step_name}</div><div class="step-content">{display_content}</div>{token_html}</div>'
             
-            # Display as markdown with HTML support for small tags
-            st.markdown(all_steps_text, unsafe_allow_html=True)
+            # Display as HTML with colored boxes
+            st.markdown(all_steps_html, unsafe_allow_html=True)
         else:
             st.info("Noch keine Steps ausgeführt")
 
