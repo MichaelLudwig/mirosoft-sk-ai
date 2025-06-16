@@ -19,9 +19,18 @@ st.set_page_config(
 st.markdown("""
 <style>
 @keyframes pulse {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
+    0% { 
+        opacity: 0.8; 
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 1; 
+        transform: scale(1.02);
+    }
+    100% { 
+        opacity: 0.8; 
+        transform: scale(1);
+    }
 }
 
 .pulse-box {
@@ -368,9 +377,24 @@ if prompt := st.chat_input("Ihre Frage..."):
                         if st.session_state.agent_status == "thinking":
                             # Get the latest step details for more context
                             detail_text = "Agent arbeitet..."
+                            step_category = "internal"  # Default
+                            
                             if st.session_state.agent_steps:
                                 latest_step = st.session_state.agent_steps[-1]
                                 step_content = latest_step.get('content', '')
+                                
+                                # Determine step category for coloring
+                                step_categories = {
+                                    "Intent Classification": "openai",
+                                    "API URL Generation": "openai", 
+                                    "Summarization": "openai",
+                                    "Error Correction": "openai",
+                                    "API Request": "graph-api",
+                                    "API Response": "graph-api",
+                                    "Date Enhancement": "internal",
+                                    "Token Count": "internal"
+                                }
+                                step_category = step_categories.get(latest_step['type'], 'internal')
                                 
                                 # Remove token info for display parsing
                                 if "|||" in step_content:
@@ -404,7 +428,7 @@ if prompt := st.chat_input("Ihre Frage..."):
                                     detail_text = step_content[:50] + "..." if len(step_content) > 50 else step_content
                             
                             st.markdown(f"""
-                            <div class="status-box thinking pulse-box">
+                            <div class="step-box {step_category} pulse-box">
                                 <h3 style="margin: 0;">🔍 {st.session_state.agent_current_step or "Analysiere..."}</h3>
                                 <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #666;">{detail_text}</p>
                             </div>
